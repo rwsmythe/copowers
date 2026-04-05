@@ -1,8 +1,8 @@
 {
   "name": "copowers",
-  "version": "2.0.0",
-  "description": "Adversarial Codex-powered review with commands, hooks, watchdog agent, and configurable settings",
+  "version": "1.0.0",
+  "description": "Adversarial Codex-powered review wrapper for Claude Code superpowers — multi-round review via OpenAI Codex MCP",
   "author": {
-    "name": "Local"
+    "name": "Reid Smythe"
   }
 }
