@@ -1,0 +1,19 @@
+# copowers default settings
+# Override per-project via .copowers.yaml in project root
+
+review:
+  min_rounds: 2
+  max_rounds: 5
+  stop_hook_severity: "critical"  # "critical", "major", or "all"
+
+watchdog:
+  file_threshold: 10       # files changed to trigger suggestion
+  line_threshold: 500      # lines changed to trigger suggestion
+  monitor_specs: true
+  monitor_plans: true
+  monitor_code: true
+
+phases:
+  brainstorming: true
+  writing_plans: true
+  executing_plans: true

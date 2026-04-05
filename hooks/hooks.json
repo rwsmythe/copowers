@@ -1,0 +1,9 @@
+{
+  "hooks": [
+    {
+      "event": "Stop",
+      "script": "${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate.sh",
+      "timeout": 5000
+    }
+  ]
+}

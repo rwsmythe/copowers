@@ -1,0 +1,8 @@
+{
+  "name": "copowers",
+  "version": "2.0.0",
+  "description": "Adversarial Codex-powered review with commands, hooks, watchdog agent, and configurable settings",
+  "author": {
+    "name": "Local"
+  }
+}
