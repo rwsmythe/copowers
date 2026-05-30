@@ -12,6 +12,11 @@ Codex is invoked via its MCP server tools (`codex` and `codex-reply`), not as a 
 subprocess. Thread continuity via `threadId` means Codex retains full context across
 rounds — only deltas need to be passed in subsequent rounds.
 
+**Transport fallback:** where the MCP tools are unavailable or unusable (e.g. the Claude Code
+VS Code extension imposes a ~1s fire-and-forget MCP tool deadline that the long-running `codex`
+tool can never meet), drive Codex through the Linux Codex CLI inside WSL instead — see
+**CLI Fallback (Codex via WSL)** below. Same review loop and prompts; only the invocation differs.
+
 When combined artifact content is large (spec + plan + diff can easily exceed inline prompt
 limits), artifacts are written to temp files and Codex reads them from disk. See the
 **Extended Context Passing** section below.
@@ -109,6 +114,47 @@ small artifacts.
 
 **Round 2+ prompts** are always inline (delta-only) since they contain only resolutions and
 changed sections, which are small. The temp files are only needed for round 1.
+
+## CLI Fallback (Codex via WSL)
+
+Use this when the Codex **MCP** tools are unavailable or unusable. (On the Claude Code VS Code
+extension for Windows the MCP tools always time out: the extension hardcodes a ~1s
+fire-and-forget tool deadline that a full Codex agent turn cannot meet. The Windows-native
+Codex CLI is not a substitute — its sandbox is broken, so it cannot read files. The **Linux**
+Codex CLI inside WSL is the working path, and it reads artifact files directly from disk.)
+
+**One-time prerequisite (per machine):** Linux Codex installed in WSL with auth. Check with
+`wsl -e bash -c 'export PATH="$HOME/.local/node22/bin:$PATH"; codex --version'`. If missing:
+install Node in WSL, `npm install -g @openai/codex`, then reuse the Windows auth via
+`cp /mnt/c/Users/<winuser>/.codex/auth.json ~/.codex/auth.json` (account-scoped tokens, no re-login).
+
+**Path translation:** a Windows project path `C:\Users\me\repo` is `WSL_ROOT=/mnt/c/Users/me/repo`
+in WSL (lowercase drive letter, forward slashes). Compute `WSL_ROOT` from the project root.
+
+**Round 1:**
+1. Write the artifact temp files to the project root exactly as in *Extended Context Passing*.
+   Codex reads them itself from disk — no inlining, no prompt-size limit.
+2. Write the Round-1 prompt (the **file-based variant** from Step B, which references those files
+   by name) to `.copowers-review-prompt.txt` in the project root.
+3. Invoke (prompt piped via stdin to avoid arg-length limits):
+   ```bash
+   wsl -e bash -c 'export PATH="$HOME/.local/node22/bin:$PATH"; codex exec -s read-only --skip-git-repo-check -C "WSL_ROOT" - < "WSL_ROOT/.copowers-review-prompt.txt"'
+   ```
+   Codex runs read-only (no writes, no network) and reads the artifacts from disk. The review text
+   is on stdout — parse it exactly as a Step D response. (Read-only grants broad filesystem read,
+   so Codex can also follow references outside the repo.)
+
+**Round 2+:** thread continuity is via `resume --last` (there is no `threadId` on the CLI). Write
+the delta prompt (Step B round-2 format) to `.copowers-review-prompt.txt`, then:
+   ```bash
+   wsl -e bash -c 'export PATH="$HOME/.local/node22/bin:$PATH"; codex exec resume --last -c sandbox_mode="read-only" --skip-git-repo-check - < "WSL_ROOT/.copowers-review-prompt.txt"'
+   ```
+   `resume` does NOT accept the `-s` flag — set the sandbox via `-c sandbox_mode="read-only"`.
+
+**Failure handling:** if a WSL `codex` call errors (non-zero exit, or no parseable verdict), log a
+warning and surface it — do NOT silently treat the round as clean.
+
+**Cleanup:** remove `.copowers-review-prompt.txt` along with the artifact temp files.
 
 ## Loop
 
@@ -318,8 +364,11 @@ Parameters: {
 }
 ```
 
-If the MCP tool call fails or returns no content, log a warning and treat this round as
-`NO_NEW_CRITICAL_MAJOR` to avoid trapping the user. Note the failure in the summary.
+If the MCP tool call fails or returns no content (e.g. the host's MCP transport times out),
+switch to the **CLI Fallback (Codex via WSL)** for this and all subsequent rounds. Only if the
+CLI fallback is ALSO unavailable, log a warning and treat this round as `NO_NEW_CRITICAL_MAJOR`
+to avoid trapping the user, and note the failure in the summary. (Do not treat a mere MCP
+timeout as a clean round — that would silently no-op the review.)
 
 ### Step D: Parse response
 
