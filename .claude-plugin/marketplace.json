@@ -1,0 +1,15 @@
+{
+  "name": "copowers",
+  "owner": { "name": "Reid Smythe" },
+  "metadata": { "description": "Adversarial Codex-powered review wrapper for Claude Code superpowers" },
+  "plugins": [
+    {
+      "name": "copowers",
+      "source": "./plugins/copowers",
+      "description": "Adversarial Codex-powered review with commands, hooks, watchdog agent, and configurable settings",
+      "author": { "name": "Reid Smythe" },
+      "repository": "https://github.com/rwsmythe/copowers",
+      "keywords": ["code-review", "codex", "adversarial", "superpowers"]
+    }
+  ]
+}

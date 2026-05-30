@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/stop-review-gate.sh\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
