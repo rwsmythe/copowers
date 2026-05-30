@@ -151,10 +151,20 @@ the delta prompt (Step B round-2 format) to `.copowers-review-prompt.txt`, then:
    ```
    `resume` does NOT accept the `-s` flag — set the sandbox via `-c sandbox_mode="read-only"`.
 
+**Findings file (read-only handoff):** Codex runs read-only and cannot write, so after each
+round capture its stdout review and append it to `.copowers-findings.md` in the project root,
+under a `## Round N — <ISO timestamp>` header. Claude parses and adjudicates from this file, and
+it persists as the durable findings record for the operator's back-and-forth across extensive
+changes — the read-only-safe equivalent of Codex writing the file itself, with Codex never able
+to modify the working tree. (On round 2+, Codex re-reads the *updated* artifacts/repo via
+`resume --last`; the new findings append under the next header.)
+
 **Failure handling:** if a WSL `codex` call errors (non-zero exit, or no parseable verdict), log a
 warning and surface it — do NOT silently treat the round as clean.
 
-**Cleanup:** remove `.copowers-review-prompt.txt` along with the artifact temp files.
+**Cleanup:** remove `.copowers-review-prompt.txt` and the input artifact temp files
+(`.copowers-review-spec.md`, `-plan.md`, `-diff.txt`, `-request.txt`). Do NOT delete
+`.copowers-findings.md` — it is the retained findings record for the operator.
 
 ## Loop
 
