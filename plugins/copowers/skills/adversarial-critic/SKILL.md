@@ -123,13 +123,28 @@ fire-and-forget tool deadline that a full Codex agent turn cannot meet. The Wind
 Codex CLI is not a substitute — its sandbox is broken, so it cannot read files. The **Linux**
 Codex CLI inside WSL is the working path, and it reads artifact files directly from disk.)
 
-**One-time prerequisite (per machine):** Linux Codex installed in WSL with auth. Check with
-`wsl -e bash -c 'export PATH="$HOME/.local/node22/bin:$PATH"; codex --version'`. If missing:
-install Node in WSL, `npm install -g @openai/codex`, then reuse the Windows auth via
-`cp /mnt/c/Users/<winuser>/.codex/auth.json ~/.codex/auth.json` (account-scoped tokens, no re-login).
+**One-time prerequisite (per machine):** Linux Codex installed in WSL with auth. Verify with
+`wsl -e bash -c 'export PATH="$HOME/.local/node22/bin:$PATH"; codex --version'` → must print
+`codex-cli 0.135.0`. If missing: install Node in WSL, `npm install -g @openai/codex`, then reuse
+the Windows auth via `cp /mnt/c/Users/<winuser>/.codex/auth.json ~/.codex/auth.json` (account-scoped
+tokens, no re-login).
+
+**Instantiation pitfall — the #1 failure, read this:** ALWAYS either prefix the invocation with
+`export PATH="$HOME/.local/node22/bin:$PATH"` (as shown below) OR use an interactive login shell
+`wsl bash -ilc '…'` (the `-i` sources `~/.bashrc`, where that PATH lives). A bare `wsl codex …`, a
+non-interactive `wsl bash -lc '…'`, or `which codex` WITHOUT that PATH resolves the **Windows npm
+shim** that leaks onto WSL's `/mnt/c` PATH (`/mnt/c/Users/<u>/AppData/Roaming/npm/codex`) and dies
+with `node: not found` — which looks like "the WSL codex is broken" but is only PATH resolution.
+Confirm `command -v codex` returns `/home/<wsluser>/.local/node22/bin/codex` before proceeding.
 
 **Path translation:** a Windows project path `C:\Users\me\repo` is `WSL_ROOT=/mnt/c/Users/me/repo`
 in WSL (lowercase drive letter, forward slashes). Compute `WSL_ROOT` from the project root.
+
+**Git worktrees:** if the project root is a git *worktree*, its `.git` is a file pointing to a
+Windows path that WSL git cannot resolve, so `git` commands fail inside WSL. The diff is already
+pre-generated on the Windows side (the executing-plans phase writes `GIT_DIFF` to
+`.copowers-review-diff.txt`); the invocation passes `--skip-git-repo-check`; AND the prompt must
+tell Codex to review the provided diff/files and NOT run any `git` command.
 
 **Round 1:**
 1. Write the artifact temp files to the project root exactly as in *Extended Context Passing*.
@@ -151,20 +166,32 @@ the delta prompt (Step B round-2 format) to `.copowers-review-prompt.txt`, then:
    ```
    `resume` does NOT accept the `-s` flag — set the sandbox via `-c sandbox_mode="read-only"`.
 
-**Findings file (read-only handoff):** Codex runs read-only and cannot write, so after each
-round capture its stdout review and append it to `.copowers-findings.md` in the project root,
-under a `## Round N — <ISO timestamp>` header. Claude parses and adjudicates from this file, and
-it persists as the durable findings record for the operator's back-and-forth across extensive
-changes — the read-only-safe equivalent of Codex writing the file itself, with Codex never able
-to modify the working tree. (On round 2+, Codex re-reads the *updated* artifacts/repo via
-`resume --last`; the new findings append under the next header.)
+**Findings transcript (REQUIRED — read-only handoff + orchestrator QA):** Codex runs read-only and
+cannot write, so the loop itself MUST persist the exchange. After EACH round, append BOTH the prompt
+sent AND Codex's full response to `.copowers-findings.md` in the project root, in this exact shape:
+
+```
+## Round N — <ISO timestamp>
+### Prompt sent to Codex
+<the exact prompt text for this round>
+### Codex response
+<Codex's full verbatim stdout, including the "### Verdict" line>
+```
+
+Recording the **response** is NOT optional: the per-finding verdicts and the final-round
+`NO_NEW_CRITICAL_MAJOR` line are how the orchestrator independently confirms the chain ran genuinely
+and converged at QA. A recurring failure is saving only the prompts — do not do that. Claude
+parses/adjudicates from the response; the file is the durable record and the read-only-safe
+equivalent of Codex writing it (Codex never modifies the working tree). On round 2+, Codex re-reads
+the *updated* repo via `resume --last` and the new round appends under the next header. Ensure
+`.copowers-*` is gitignored so the transcript is not committed.
 
 **Failure handling:** if a WSL `codex` call errors (non-zero exit, or no parseable verdict), log a
 warning and surface it — do NOT silently treat the round as clean.
 
 **Cleanup:** remove `.copowers-review-prompt.txt` and the input artifact temp files
 (`.copowers-review-spec.md`, `-plan.md`, `-diff.txt`, `-request.txt`). Do NOT delete
-`.copowers-findings.md` — it is the retained findings record for the operator.
+`.copowers-findings.md` — it is the retained findings/transcript record for operator review AND orchestrator QA.
 
 ## Loop
 
